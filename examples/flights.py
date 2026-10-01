@@ -5,12 +5,18 @@ import base64
 import json
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from datetime import date, timedelta
 
 from jev_ultrafast import Agent
 
 URL = "https://www.google.com/travel/flights?hl=en"
+FLIGHT_DATE = date.today() + timedelta(days=7)
+FLIGHT_DATE_ISO = FLIGHT_DATE.isoformat()
+FLIGHT_DATE_GOAL = f"{FLIGHT_DATE.strftime('%B')} {FLIGHT_DATE.day}, {FLIGHT_DATE.year}"
+FLIGHT_DATE_SHORT = f"{FLIGHT_DATE.strftime('%a, %b')} {FLIGHT_DATE.day}"
+FLIGHT_DATE_LONG = f"{FLIGHT_DATE.strftime('%A, %B')} {FLIGHT_DATE.day}"
 GOALS = (
-    "Find one-way flights from Zurich to London on September 20, 2026, for one adult in economy. "
+    f"Find one-way flights from Zurich to London on {FLIGHT_DATE_GOAL}, for one adult in economy. "
     "Stop when matching flight options are visible. Do not select or book a flight."
 )
 
@@ -20,7 +26,7 @@ def verify(page):
     parsed = urlparse(page["url"])
     encoded = parse_qs(parsed.query).get("tfs", [""])[0]
     try:
-        date_in_url = b"2026-09-20" in base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
+        date_in_url = FLIGHT_DATE_ISO.encode() in base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
     except ValueError:
         date_in_url = False
     actions = page["actions"]
@@ -31,9 +37,9 @@ def verify(page):
         "one_way": values.get("Change ticket type. One way") == "One way",
         "origin": values.get("Where from?") == "Zürich",
         "destination": values.get("Where to?") == "London",
-        "date": values.get("Departure") == "Sun, Sep 20",
-        "year": date_in_url or "departing 2026-09-20" in page["text"],
-        "results": bool(flights) and all("Sunday, September 20" in f for f in flights),
+        "date": values.get("Departure") == FLIGHT_DATE_SHORT,
+        "year": date_in_url or f"departing {FLIGHT_DATE_ISO}" in page["text"],
+        "results": bool(flights) and all(FLIGHT_DATE_LONG in f for f in flights),
     }
     return {"passed": all(checks.values()), "checks": checks, "visible_flights": flights}
 

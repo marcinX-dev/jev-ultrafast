@@ -22,7 +22,10 @@ def post_json(url, key, body):
             time.sleep(0.5 * 2**attempt)
             continue
         if response.is_error:
-            raise RuntimeError(f"Model provider returned HTTP {response.status_code}; no action executed.")
+            raise RuntimeError(
+                f"Model provider returned HTTP {response.status_code}: "
+                f"{response.text}; no action executed."
+            )
         return response.json()
     raise RuntimeError("Model unavailable")
 
@@ -163,8 +166,14 @@ def field_text(context):
         raise ValueError("TYPE_TEXT needs TEXT_MODEL_API_KEY; no text is hardcoded or guessed by the executor.")
     base = os.environ.get("TEXT_MODEL_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
     model = os.environ.get("TEXT_MODEL", "deepseek-chat")
-    reasoning = {"thinking": {"type": "disabled"}} if "api.deepseek.com/" in base else {"reasoning": {"effort": "low"}}
-    if os.environ.get("TEXT_MODEL_REASONING") == "none":
+    if "api.openai.com/" in base:
+        reasoning = {}
+    elif "api.deepseek.com/" in base:
+        reasoning = {"thinking": {"type": "disabled"}}
+    else:
+        reasoning = {"reasoning": {"effort": "low"}}
+
+    if os.environ.get("TEXT_MODEL_REASONING") == "none" and "api.openai.com/" not in base:
         reasoning = {"reasoning": {"enabled": False}}
     started = time.perf_counter()
     result = post_json(
@@ -172,7 +181,7 @@ def field_text(context):
         key,
         {
             "model": model,
-            "max_tokens": 1024,
+            "max_completion_tokens": 1024,
             "response_format": {"type": "json_object"},
             **reasoning,
             "messages": [
